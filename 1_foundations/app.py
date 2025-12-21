@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from gradio.components import chatbot
 from openai import OpenAI
 import json
 import os
@@ -76,8 +77,12 @@ tools = [{"type": "function", "function": record_user_details_json},
 class Me:
 
     def __init__(self):
-        self.openai = OpenAI()
-        self.name = "Ed Donner"
+        self.google_api_key = os.getenv('GOOGLE_API_KEY')
+        self.gemini = OpenAI(
+            api_key=self.google_api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+        self.name = "Kevin Wesendrup"
         reader = PdfReader("me/linkedin.pdf")
         self.linkedin = ""
         for page in reader.pages:
@@ -113,10 +118,11 @@ If the user is engaging in discussion, try to steer them towards getting in touc
         return system_prompt
     
     def chat(self, message, history):
+        push(f"My career chatbot was asked: {message}")
         messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
         done = False
         while not done:
-            response = self.openai.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools)
+            response = self.gemini.chat.completions.create(model="gemini-2.5-flash", messages=messages, tools=tools)
             if response.choices[0].finish_reason=="tool_calls":
                 message = response.choices[0].message
                 tool_calls = message.tool_calls
@@ -130,5 +136,16 @@ If the user is engaging in discussion, try to steer them towards getting in touc
 
 if __name__ == "__main__":
     me = Me()
-    gr.ChatInterface(me.chat, type="messages").launch()
+    welcome_message = [
+        {
+            "role": "assistant",
+            "content": (
+                f"Hi 👋 I'm {me.name}. "
+                "Welcome to my chat, feel free to ask me anything about my background, "
+                "experience, or current work. "
+                "If you'd like to get in touch, just let me know!"
+            ),
+        }
+    ]
+    gr.ChatInterface(me.chat, type="messages", chatbot=gr.Chatbot(value=welcome_message, type="messages")).launch()
     
